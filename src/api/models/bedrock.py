@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import logging
 import re
 import time
@@ -42,6 +43,7 @@ from api.schema import (
     UserMessage,
 )
 from api.setting import (
+    BEDROCK_TOKEN_SECRET_ARN,
     AWS_REGION,
     DEBUG,
     DEFAULT_MODEL,
@@ -49,6 +51,50 @@ from api.setting import (
     ENABLE_APPLICATION_INFERENCE_PROFILES,
     ENABLE_PROMPT_CACHING,
 )
+
+
+def _retrieve_bedrock_token() -> str | None:
+    """
+    Retrieve Bedrock bearer token from AWS Secrets Manager.
+    
+    Returns None if BEDROCK_TOKEN_SECRET_ARN is not configured.
+    Token is retrieved securely and NOT logged.
+    """
+    if not BEDROCK_TOKEN_SECRET_ARN:
+        return None
+    
+    _logger = logging.getLogger(__name__)
+    try:
+        sm = boto3.client("secretsmanager")
+        response = sm.get_secret_value(SecretId=BEDROCK_TOKEN_SECRET_ARN)
+        
+        if "SecretString" in response:
+            secret = json.loads(response["SecretString"])
+            token = secret.get("api_key")
+            if not token:
+                raise RuntimeError(
+                    'Secrets Manager secret must contain an "api_key" field'
+                )
+            return token
+        else:
+            raise RuntimeError(
+                "Unable to retrieve bearer token from Secrets Manager"
+            )
+    except Exception as e:
+        _logger.error("Failed to retrieve Bedrock bearer token: %s", str(e))
+        msg = f"Unable to retrieve Bedrock bearer token: {str(e)}"
+        raise RuntimeError(msg)
+
+
+# Retrieve and set bearer token if configured
+_bedrock_token = _retrieve_bedrock_token()
+if _bedrock_token:
+    # Set environment variable for boto3 to use bearer token authentication
+    os.environ['AWS_BEARER_TOKEN_BEDROCK'] = _bedrock_token
+    _token_logger = logging.getLogger(__name__)
+    _token_logger.info("Bedrock bearer token authentication configured")
+    # Clear the token from memory for security
+    del _bedrock_token
 
 logger = logging.getLogger(__name__)
 

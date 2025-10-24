@@ -3,6 +3,10 @@ Parameters:
   ApiKeySecretArn:
     Type: String
     AllowedPattern: ^arn:aws:secretsmanager:.*$
+  BedrockTokenSecretArn:
+    Type: String
+    AllowedPattern: ^arn:aws:secretsmanager:.*$
+    Description: The secret ARN in Secrets Manager used to store the Bedrock bearer token (api-key field)
     Description: The secret ARN in Secrets Manager used to store the API Key
   ContainerImageUri:
     Type: String
@@ -167,7 +171,8 @@ Resources:
               - secretsmanager:DescribeSecret
             Effect: Allow
             Resource:
-              Ref: ApiKeySecretArn
+              - Ref: ApiKeySecretArn
+              - Ref: BedrockTokenSecretArn
         Version: "2012-10-17"
       PolicyName: ProxyApiHandlerServiceRoleDefaultPolicy86681202
       Roles:
@@ -193,6 +198,8 @@ Resources:
           ENABLE_APPLICATION_INFERENCE_PROFILES: "true"
           ENABLE_PROMPT_CACHING:
             Ref: EnablePromptCaching
+          BEDROCK_TOKEN_SECRET_ARN:
+            Ref: BedrockTokenSecretArn
       MemorySize: 1024
       PackageType: Image
       Role:
